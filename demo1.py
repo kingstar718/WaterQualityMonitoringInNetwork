@@ -4,18 +4,19 @@ import numpy as np
 from openpyxl import load_workbook
 from get_data import get_data
 
-#201 1为节点编号  2位节点流量
-#202 1为管段编号  2为管段流量  3，4分别为管段首尾的节点编号
+# 201 excel中  列1为节点编号  列22位节点流量
+# 202 excel中  列1为管段编号  列2为管段流量  列3，4分别为管段首尾的节点编号
 node_name = '201.xlsx'
+# 当前时段的流量方向和初始管网默认的方向不同,为方便计算,统一将流量改成正值并更改默认管网方向.
 pipeline_name = '2022.xlsx'
 
-#节点
+# 节点
 node_num = get_data(node_name,1)
 node_data = get_data(node_name,2)
 print('管网节点编号： ',node_num)
 print('管网节点流量： ',node_data)
 
-#管段
+# 管段
 pipeline_num = get_data(pipeline_name,1)
 pipeline_data = get_data(pipeline_name,2)
 pipeline_firstnum = get_data(pipeline_name,3)
@@ -25,9 +26,9 @@ print('管网管段流量： ',pipeline_data)
 print('管网管段首节点： ',pipeline_firstnum)
 print('管网管段末节点： ',pipeline_lastnum)
 
-#加权图
+# 加权图
 G = nx.DiGraph()
-i=0
+i = 0
 while i<node_num.__len__():
     G.add_edge(pipeline_firstnum[i],pipeline_lastnum[i],pipline_gpm=pipeline_data[i])
     G.add_node(node_num[i],node_gpm=node_data[i])
@@ -37,17 +38,19 @@ print("加权图： ",G.edges())
 print("管段及流量：",nx.get_edge_attributes(G,"pipline_gpm"))
 print("节点及流量：",nx.get_node_attributes(G,"node_gpm"))
 
-#直接相连
-m=15  #上游节点
-n=5   #下游节点
+# 直接相连
+# 上游节点
+m = 15
+# 下游节点
+n = 5
 
-#判别函数   1直接相连  -1间接相连  None不相连
+# 判别函数   1直接相连  -1间接相连  None不相连
 def connected(m,n,list):
-    i=0
-    while i<list.__len__():
-        if(m==list[i][0]):
-            if(n==list[i][1]):
-                #print("直接相连")
+    i = 0
+    while i < list.__len__():
+        if(m == list[i][0]):
+            if(n == list[i][1]):
+                # print("直接相连")
                 return 1
                 break
         else:
@@ -57,9 +60,10 @@ def connected(m,n,list):
                 break
         i=i+1
 
-#二维数组初始化以及赋值
+# 二维数组初始化以及赋值
 listW=np.zeros((node_num.__len__(),node_num.__len__()),dtype=float)
-
+# 多条路径的l
+lmore=[]
 l21=[]
 l22=[]
 l31=[]
@@ -71,11 +75,12 @@ for i in node_num:
     for j in node_num:  #谁当下游节点  j为上游 为广度优先搜索的起始节点
         listjBFS=list(nx.bfs_tree(G,j).edges())
         judge=connected(j,i,listjBFS)
-        if(judge==1):#直接相连
+        # 直接相连
+        if(judge==1):
             p=G.in_degree(i)  #算的是下游节点的入度
-            #indgreelist.append(p)
-            #pp1=list(nx.all_simple_paths(G,j,i,cutoff=1))
-            #pp2.append(pp1[0])
+            # indgreelist.append(p)
+            # pp1=list(nx.all_simple_paths(G,j,i,cutoff=1))
+            # pp2.append(pp1[0])
             if(p==1):
                 listW[i-1][j-1]=1 #入度为1  直接相连 值设为1
             elif(p==2):
@@ -86,13 +91,17 @@ for i in node_num:
                 l31.append(l3[0])   #入度3的同理   这个管网节点入度最大的为3
         elif(judge==-1):   #间接相连
             l=list(nx.all_simple_paths(G,j,i))#起始  结束
-            l4.append(l[0])        #间接相连的节点list存l4,后面再计算
+            #print(list(nx.all_simple_paths(G,j,i)))
+            lmore.append(l)
+            #l4.append(l[0])        #间接相连的节点list存l4,后面再计算
         elif(judge==None):
             listW[i-1][j-1]=0  #不相连直接设为0
 
-#计算入度为2的节点的值  其中l21包含了所有入度为2的节点
-l21_num=0
-pipline_gpm=nx.get_edge_attributes(G,'pipline_gpm')  #查看任意边的属性，为pipline_gpm[22,32]
+
+# 计算入度为2的节点的值  其中l21包含了所有入度为2的节点
+l21_num = 0
+# 查看任意边的属性，为pipline_gpm[22,32]
+pipline_gpm=nx.get_edge_attributes(G,'pipline_gpm')
 while(l21_num<len(l21)):
     x=pipline_gpm[l21[l21_num][0],l21[l21_num][1]]    #取上下游节点的管段1流量
     y=pipline_gpm[l21[l21_num+1][0],l21[l21_num+1][1]]  #取上下游节点的管段2流量
@@ -104,7 +113,7 @@ while(l21_num<len(l21)):
     listW[l21[l21_num+1][0]-1,l21[l21_num+1][1]-1]=z2
     l21_num=l21_num+2  #下一个入度为2的节点
 
-#直接相连  入度为3
+# 直接相连  入度为3
 l31_num=0
 while(l31_num<len(l31)):
     x31=pipline_gpm[l31[l31_num][0],l31[l31_num][1]]
@@ -121,23 +130,42 @@ while(l31_num<len(l31)):
 
 node_m = nx.get_node_attributes(G,'node_gpm')
 
-#间接连通的计算函数
+# 间接连通的计算函数
 def IndirectConnect(list):  #w(i,j) 中 i为下游  j为上游
     i=0
     m=1
     while i<len(list)-1:
         n1=list[i]
-        n2=list[i+1]   #依次取出两个节点
-        n3=listW[n2-1,n1-1]  #查找其在矩阵中值
+        n2=list[i+1]   # 依次取出两个节点
+        n3=listW[n2-1,n1-1]  #查找其在矩阵中的值
         m=n3*m   #累乘
         i=i+1
     listW[list[len(list)-1]-1,list[0]-1]=m  #值放入矩阵
-    #print(m)
 
-#计算间接连通   #其中list l4 存储了两两节点间所有节点
-for j in l4:
-    IndirectConnect(j)
 
+# 多路径计算
+def IndirectConnect2(list):  #w(i,j) 中 i为下游  j为上游
+    i=0
+    m=1
+    while i<len(list)-1:
+        n1=list[i]
+        n2=list[i+1]   # 依次取出两个节点
+        n3=listW[n2-1,n1-1]  #查找其在矩阵中的值
+        m=n3*m   #累乘
+        i=i+1
+    return m
+
+# 计算间接连通   #其中list l4 存储了两两节点间所有节点
+for i in lmore:
+    # 一条路径
+    if(len(i)==1):
+        IndirectConnect(i[0]) #多重嵌套,取第一个
+    else:
+        sumM = 0
+        for j in i:
+            #IndirectConnect2(j)
+            sumM = sumM + IndirectConnect2(j)
+        listW[i[0][len(i[0]) - 1] - 1, i[0][0] - 1] = sumM
 
 def standard(list,c):
     for i in list:
@@ -151,8 +179,8 @@ def standard(list,c):
 newList=standard(listW,0.3)
 
 
-#for i in newList:
-    #print(i)
+for i in newList:
+    print(i)
 import codecs
 
 list111=[]
@@ -161,7 +189,7 @@ list222=[]
 #for i in newList:
     #f.write(str(i)+'\r\n')
 #f.close()
-for i in node_num:
-    list111.append('"'+str(i)+'"')
+#for i in node_num:
+    #list111.append('"'+str(i)+'"')
 
-print(list111)
+#print(list111)
